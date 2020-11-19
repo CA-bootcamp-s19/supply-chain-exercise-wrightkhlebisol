@@ -40,16 +40,27 @@ contract SupplyChain {
       bytes name;
       uint sku;
       uint price;
-      bytes state;
-      address seller;
-      address buyer;
+      State state;
+      address payable seller;
+      address payable buyer;
   }
 
   /* Create 4 events with the same name as each possible State (see above)
     Prefix each event with "Log" for clarity, so the forSale event will be called "LogForSale"
     Each event should accept one argument, the sku */
+    event LogForSale(uint indexed sku);
 
-/* Create a modifer that checks if the msg.sender is the owner of the contract */
+    event LogSold(uint indexed sku);
+
+    event LogShipped(uint indexed sku);
+
+    event LogReceived(uint indexed sku);
+
+    /* Create a modifer that checks if the msg.sender is the owner of the contract */
+    modifier checkOwner(){
+        require(msg.sender == owner, "You are not authorised");
+        _;
+    }
 
   modifier verifyCaller (address _address) { require (msg.sender == _address); _;}
 
@@ -73,15 +84,33 @@ contract SupplyChain {
    */
 
 
-  /// modifier forSale
-  /// modifier sold
-  /// modifier shipped
-  /// modifier received
+  modifier forSale(){
+      require(Item.state == State.ForSale && Item.buyer != address(0));
+      _;
+  }
+
+  modifier sold(){
+      require(Item.buyer != address(0));
+      _;
+  }
+
+  modifier shipped(){
+      require(Item.state == State.Shipped);
+      _;
+  }
+
+  modifier received(){
+      require(Item.state == State.Received);
+      _;
+  }
 
 
   constructor() public {
     /* Here, set the owner as the person who instantiated the contract
        and set your skuCount to 0. */
+       owner = msg.sender;
+       skuCount = 0;
+
   }
 
   function addItem(string memory _name, uint _price) public returns(bool){
