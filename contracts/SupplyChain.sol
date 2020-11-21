@@ -37,7 +37,7 @@ contract SupplyChain {
     Be sure to add "payable" to addresses that will be handling value transfer
   */
   struct Item {
-      bytes name;
+      string name;
       uint sku;
       uint price;
       State state;
@@ -57,14 +57,20 @@ contract SupplyChain {
     event LogReceived(uint indexed sku);
 
     /* Create a modifer that checks if the msg.sender is the owner of the contract */
-    modifier checkOwner(){
-        require(msg.sender == owner, "You are not authorised");
+    modifier checkSeller(uint _sku, address _address){
+        require(items[_sku].seller == _address, "you are not the seller");
         _;
     }
 
   modifier verifyCaller (address _address) { require (msg.sender == _address); _;}
 
   modifier paidEnough(uint _price) { require(msg.value >= _price); _;}
+
+  modifier verifyBuyer(uint _sku, address _address){
+        require(items[_sku].buyer == _address, "You are not the buyer");
+        _;
+    }
+
   modifier checkValue(uint _sku) {
     //refund them after pay for item (why it is before, _ checks for logic before func)
     _;
@@ -84,23 +90,23 @@ contract SupplyChain {
    */
 
 
-  modifier forSale(){
-      require(Item.state == State.ForSale && Item.buyer != address(0));
+  modifier forSale(uint _sku){
+      require(items[_sku].state == State.ForSale && items[_sku].buyer == address(0), "Item is available for sale");
       _;
   }
 
-  modifier sold(){
-      require(Item.buyer != address(0));
+  modifier sold(uint _sku){
+      require(items[_sku].buyer != address(0) && items[_sku].state == State.Sold, "Item has been sold");
       _;
   }
 
-  modifier shipped(){
-      require(Item.state == State.Shipped);
+  modifier shipped(uint _sku){
+      require(items[_sku].state == State.Shipped, "Item has been shipped");
       _;
   }
 
-  modifier received(){
-      require(Item.state == State.Received);
+  modifier received(uint _sku){
+      require(items[_sku].state == State.Received, "Item received by buyer");
       _;
   }
 
@@ -126,24 +132,34 @@ contract SupplyChain {
     if the buyer paid enough, and check the value after the function is called to make sure the buyer is
     refunded any excess ether sent. Remember to call the event associated with this function!*/
 
-  function buyItem(uint sku)
-    public
-  {}
+  function buyItem(uint sku) payable public forSale(sku) paidEnough(items[sku].price) checkValue(sku)
+  {
+    items[sku].buyer = msg.sender;
+    items[sku].state = State.Sold;
+    items[sku].seller.transfer(items[sku].price);
+    emit LogSold(sku);
+  }
 
   /* Add 2 modifiers to check if the item is sold already, and that the person calling this function
   is the seller. Change the state of the item to shipped. Remember to call the event associated with this function!*/
-  function shipItem(uint sku)
+  function shipItem(uint sku) sold(sku) checkSeller(sku, msg.sender)
     public
-  {}
+  {
+      items[sku].state = State.Shipped;
+      emit LogShipped(sku);
+  }
 
   /* Add 2 modifiers to check if the item is shipped already, and that the person calling this function
   is the buyer. Change the state of the item to received. Remember to call the event associated with this function!*/
-  function receiveItem(uint sku)
+  function receiveItem(uint sku) shipped(sku) verifyBuyer(sku, msg.sender)
     public
-  {}
+  {
+      items[sku].state = State.Received;
+      emit LogReceived(sku);
+  }
 
   /* We have these functions completed so we can run tests, just ignore it :) */
-  /*
+
   function fetchItem(uint _sku) public view returns (string memory name, uint sku, uint price, uint state, address seller, address buyer) {
     name = items[_sku].name;
     sku = items[_sku].sku;
@@ -152,6 +168,6 @@ contract SupplyChain {
     seller = items[_sku].seller;
     buyer = items[_sku].buyer;
     return (name, sku, price, state, seller, buyer);
-  } */
+  }
 
 }
